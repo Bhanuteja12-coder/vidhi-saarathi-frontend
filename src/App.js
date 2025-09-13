@@ -1,31 +1,27 @@
 import React, { useState } from "react";
 
-const lawyers = {
-  Criminal: [
-    { name: "Adv. Rajesh Kumar", experience: "10 years" },
-    { name: "Adv. Meena Sharma", experience: "7 years" },
-  ],
-  Family: [
-    { name: "Adv. Anjali Singh", experience: "8 years" },
-    { name: "Adv. Priya Reddy", experience: "5 years" },
-  ],
-  Consumer: [
-    { name: "Adv. Ravi Patel", experience: "6 years" },
-  ],
-  Civil: [
-    { name: "Adv. Arjun Das", experience: "12 years" },
-  ],
-};
-
 function App() {
   const [question, setQuestion] = useState("");
-  const [result, setResult] = useState(null);
+  const [chatHistory, setChatHistory] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [domain, setDomain] = useState(null); // AI-detected domain
+
+  // All lawyers
+  const allLawyers = [
+    { name: "Adv. Ramesh Kumar", specialty: "Criminal", contact: "ramesh@example.com" },
+    { name: "Adv. Priya Sharma", specialty: "Family", contact: "priya@example.com" },
+    { name: "Adv. Anil Joshi", specialty: "Consumer", contact: "anil@example.com" },
+    { name: "Adv. Neha Singh", specialty: "Civil", contact: "neha@example.com" },
+  ];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!question.trim()) return;
+
+    const userMessage = { sender: "user", text: question };
+    setChatHistory((prev) => [...prev, userMessage]);
+    setQuestion("");
     setLoading(true);
-    setResult(null);
 
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/api/classify`, {
@@ -35,63 +31,94 @@ function App() {
       });
 
       if (!res.ok) throw new Error("API error");
+
       const data = await res.json();
-      setResult(data);
+
+      // Set domain for lawyer dashboard
+      setDomain(data.domain_guess);
+
+      const aiMessage = {
+        sender: "ai",
+        text: `Domain: ${data.domain_guess}\nUrgency: ${data.urgency}\nAI Output: ${data.ai_output}`,
+      };
+      setChatHistory((prev) => [...prev, aiMessage]);
     } catch (err) {
-      setResult({ error: err.message });
+      const errorMsg = { sender: "ai", text: `Error: ${err.message}` };
+      setChatHistory((prev) => [...prev, errorMsg]);
     } finally {
       setLoading(false);
     }
   };
 
+  // Filter lawyers by detected domain
+  const filteredLawyers = domain
+    ? allLawyers.filter((l) => l.specialty === domain)
+    : [];
+
   return (
-    <div style={{ maxWidth: "600px", margin: "50px auto", fontFamily: "Arial, sans-serif" }}>
-      <h1>Vidhi Saarathi AI</h1>
+    <div style={{ display: "flex", fontFamily: "Arial, sans-serif", height: "100vh" }}>
+      {/* Chat Section */}
+      <div style={{ flex: 2, padding: "20px", borderRight: "1px solid #ccc", display: "flex", flexDirection: "column" }}>
+        <h1>Vidhi Saarathi AI</h1>
 
-      <form onSubmit={handleSubmit}>
-        <textarea
-          rows={5}
-          style={{ width: "100%", padding: "10px" }}
-          placeholder="Describe your legal problem..."
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-        />
-        <br />
-        <button type="submit" style={{ marginTop: "10px", padding: "10px 20px" }}>
-          {loading ? "Analyzing..." : "Analyze"}
-        </button>
-      </form>
-
-      {result && !result.error && (
-        <>
-          <div style={{ marginTop: "20px", padding: "15px", border: "1px solid #ccc", borderRadius: "5px" }}>
-            <h3>Domain: {result.domain_guess}</h3>
-            <p><strong>Urgency:</strong> {result.urgency}</p>
-            <p><strong>AI Output:</strong><br />{result.ai_output}</p>
-          </div>
-
-          {/* Lawyer Dashboard - Conditional */}
-          {lawyers[result.domain_guess] && (
-            <div style={{ marginTop: "20px", padding: "15px", border: "1px solid #007bff", borderRadius: "5px" }}>
-              <h3>{result.domain_guess} Lawyers</h3>
-              {lawyers[result.domain_guess].map((lawyer, idx) => (
-                <div key={idx} style={{ marginBottom: "10px" }}>
-                  <strong>{lawyer.name}</strong> - {lawyer.experience}
-                  <br />
-                  <button
-                    style={{ marginTop: "5px", padding: "5px 10px" }}
-                    onClick={() => alert(`Connecting to ${lawyer.name}...`)}
-                  >
-                    Connect
-                  </button>
-                </div>
-              ))}
+        <div style={{ flex: 1, overflowY: "auto", marginBottom: "10px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px" }}>
+          {chatHistory.length === 0 && <p style={{ color: "#888" }}>Start the conversation...</p>}
+          {chatHistory.map((msg, idx) => (
+            <div key={idx} style={{ margin: "10px 0", textAlign: msg.sender === "user" ? "right" : "left" }}>
+              <div
+                style={{
+                  display: "inline-block",
+                  padding: "10px",
+                  borderRadius: "10px",
+                  backgroundColor: msg.sender === "user" ? "#dcf8c6" : "#f1f0f0",
+                  whiteSpace: "pre-line",
+                }}
+              >
+                {msg.text}
+              </div>
             </div>
-          )}
-        </>
-      )}
+          ))}
+        </div>
 
-      {result && result.error && <p style={{ color: "red" }}>Error: {result.error}</p>}
+        <form onSubmit={handleSubmit} style={{ display: "flex" }}>
+          <textarea
+            rows={2}
+            style={{ flex: 1, padding: "10px", resize: "none" }}
+            placeholder="Type your legal query..."
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+          />
+          <button type="submit" style={{ marginLeft: "10px", padding: "10px 20px" }}>
+            {loading ? "Analyzing..." : "Send"}
+          </button>
+        </form>
+      </div>
+
+      {/* Lawyer Dashboard */}
+      <div style={{ flex: 1, padding: "20px" }}>
+        <h2>Lawyer Dashboard</h2>
+        {domain ? (
+          filteredLawyers.length > 0 ? (
+            filteredLawyers.map((lawyer, idx) => (
+              <div key={idx} style={{ marginBottom: "15px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px" }}>
+                <h4>{lawyer.name}</h4>
+                <p><strong>Specialty:</strong> {lawyer.specialty}</p>
+                <p><strong>Contact:</strong> {lawyer.contact}</p>
+                <button
+                  onClick={() => alert(`Pretend connecting to ${lawyer.name}...`)}
+                  style={{ marginTop: "5px", padding: "8px 15px" }}
+                >
+                  Connect
+                </button>
+              </div>
+            ))
+          ) : (
+            <p>No lawyer available for this domain yet.</p>
+          )
+        ) : (
+          <p>Ask a query to see relevant lawyers.</p>
+        )}
+      </div>
     </div>
   );
 }
